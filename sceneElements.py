@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import cv2
 
 
-class light:
-    def __init__(self, xPosition, direction, strength, spreadAngle, color):
+class Light:
+    def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, color, horizontalSize, verticalSize):
         self.colorDictionary = {
             "red" : np.array([1.0, 0.0, 0.0]),
             "green" : np.array([0.0, 1.0, 0.0]),
@@ -15,12 +15,12 @@ class light:
             "magenta" : np.array([1.0, 0.0, 1.0]),
             "white" : np.array([1.0, 1.0, 1.0])
         }
-        self.position = np.array([xPosition, 288])
-        self.direction = direction #angle in degrees 0 = right, 90 = up
+        self.position = np.array([xPosition, yPosition])
+        self.direction = direction #angle in degrees 0 = right, 90 = up, between -180 and +180
         self.strength = strength #0 to 11
         self.spreadAngle = spreadAngle #angle in degrees
-        self.minVisibleAngle = direction - spreadAngle / 2 + 180
-        self.maxVisibleAngle = direction + spreadAngle / 2 + 180
+        self.minVisibleAngle = direction - spreadAngle / 2
+        self.maxVisibleAngle = direction + spreadAngle / 2
         if color in self.colorDictionary:
             self.color = self.colorDictionary[color]
         else:
@@ -28,41 +28,58 @@ class light:
             self.color = self.colorDictionary["white"]
         
         self.color *= strength / 11.0
-    
-    def getAngle(self, otherPosition):
-        dY = self.position[1] - otherPosition[1]
-        dX = self.position[0] - otherPosition[0]
-        angle = 0.0
-        if dX == 0:
-            if dY > 0:
-                angle = 90.0
-            else:
-                angle = 270.0
-        elif dY == 0:
-            if dX > 0:
-                angle = 0.0
-            else:
-                angle = 180.0
-        else:
-            angle = math.atan(dY / dX) * 360.0 / (2 * math.pi)
-        
-            if angle <= 0:
-                angle += 180
-            
-            if dY < 0:
-                angle += 180
-        
-        return angle
 
-    def isLit(self, cellPosition):
-        angle = self.getAngle(cellPosition)
-        if angle > self.minVisibleAngle and angle < self.maxVisibleAngle:
-            return True
-        else:
-            return False
+        self.horizontalSize = horizontalSize
+        self.verticalSize = verticalSize
+
+        self.lightScreen = self.getNewLightScreen()
+        self.changed = False
     
+    def getNewLightScreen(self):
+        newLightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
+        if self.minVisibleAngle <= -180:
+            leftEdge = 0
+            leftStep = 0
+            # print(1)
+        else:
+            leftEdge = float(self.position[0])
+            leftStep = 1 / math.tan(self.minVisibleAngle / 180 * math.pi)
+        
+        # print(self.maxVisibleAngle)
+        if self.maxVisibleAngle >= 0:
+            rightEdge = self.horizontalSize
+            rightStep = 0
+        else:
+            rightEdge = float(self.position[0])
+            rightStep = 1 / math.tan(self.maxVisibleAngle / 180 * math.pi)
+            # print(2)
+
+        for y in range(self.verticalSize - 1, -1, -1):
+            # print(str(leftEdge) + " " +  str(rightEdge) + " " + str(y))
+            newLightScreen[int(leftEdge):int(rightEdge), y] = self.color
+            leftEdge -= leftStep
+            if leftEdge <= 0:
+                leftEdge = 0
+                leftStep = 0
+            elif leftEdge >= self.horizontalSize:
+                break
+            
+            rightEdge -= rightStep
+            if rightEdge >= self.horizontalSize:
+                rightEdge = self.horizontalSize
+                rightStep = 0
+            elif rightEdge <= 0:
+                break
+        
+        return newLightScreen
+
     def getColor(self):
         return self.color
+    
+    def getLightScreen(self):
+        if self.changed:
+            self.lightScreen = self.getNewLightScreen()
+        return self.lightScreen
 
 
 
@@ -81,7 +98,7 @@ class smokeMachine:
 
 
 
-class smokeScreen:
+class SmokeScreen:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
         self.horizontalSize = horizontalSize
         self.verticalSize = verticalSize
@@ -94,6 +111,9 @@ class smokeScreen:
     
     def getSmoke(self, location):
         return self.smokeGrid[location[0]][location[1]]
+    
+    def getSmokeScreen(self):
+        return self.smokeGrid
 
     def updateSmokeGrid(self):
         tempGrid = self.smokeGrid.copy()
@@ -115,88 +135,76 @@ class smokeScreen:
         # print(self.smokeGrid)
 
 
-class cell:
-    def __init__(self, position):
-        self.position = np.array(position)
+class Background:
+    def __init__(self, horizontalSize, verticalSize):
+        self.horizontalSize = horizontalSize
+        self.verticalSize = verticalSize
+        self.image = np.zeros([horizontalSize, verticalSize, 3])
 
-    def getColor(self, lightList, background, smoke):
-        lightColor = np.array([0.0, 0.0, 0.0])
+    def getBackground(self):
+        return self.image
 
-        for light in lightList:
-            if light.isLit(self.position):
-                lightColor += light.getColor()
-
-        smokeStrength = smoke.getSmoke(self.position)
-        # print(smokeStrength)
-        smokeColor = lightColor * smokeStrength
-        
-        backgroundColor = np.array(background.getColor(self.position))
-        backgroundColor *= 1 - smokeStrength
-        backgroundColor *= lightColor
-
-        color = smokeColor + backgroundColor
-
-        # Color proportional to angle from light 0
-        # light = lightList[0]
-        # scale = light.getAngle(self.position) / 360.0       
-        # myColor = np.array([scale, scale, scale])
-
-        return color
-
-class background:
-    def __init__(self, imageLocation, desiredSize):
-        self.image = np.zeros([desiredSize[0], desiredSize[1], 3])
-        tempImage  = None
-        try:
-            tempImage = plt.imread(imageLocation)
-            tempImage = tempImage[:,:,:3]
-
-        except FileNotFoundError:
-            print("File not Found")
-        
-        if tempImage.any() != None:
-            self.image = cv2.resize(tempImage, desiredSize)
-        
-        # print(len(self.image))
-    
     def getColor(self, position):
         # print(position)
         return self.image[position[1]][position[0]]
+    
+    def setBackground(self, imageLocation):
+        image = None
+        
+        try:
+            image = plt.imread(imageLocation)
+            image = image[:,:,:3]
+            image = cv2.resize(image, [self.horizontalSize, self.verticalSize])
+            image = image.swapaxes(0, 1)
+            self.image = image
+            print(image.shape)
+            print([self.horizontalSize, self.verticalSize])
+        except FileNotFoundError:
+            print("File not Found")
 
-class scene:
+
+
+class Scene:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
         self.horizontalSize = horizontalSize
         self.verticalSize = verticalSize
         self.lightList = []
-        self.background = np.zeros([horizontalSize, verticalSize, 3])
-        self.cells = np.empty((horizontalSize, verticalSize), dtype=object)
-        self.smoke = smokeScreen(horizontalSize, verticalSize, baseSmoke)
+        self.background = Background(horizontalSize, verticalSize)
+        self.smoke = SmokeScreen(horizontalSize, verticalSize, baseSmoke)
 
-        for x in range(0, horizontalSize):
-            for y in range(0, verticalSize):
-                self.cells[x][y] = cell(np.array([x, y]))
     
-    def addLight(self, position, direction, strength, spreadAngle, color):
-        self.lightList.append(light(position, direction, strength, spreadAngle, color))
+    def addLight(self, xPosition, direction, strength, spreadAngle, color):
+        self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, color, self.horizontalSize, self.verticalSize))
 
     def addSmokeMachine(self, location, size, strength):
         self.smoke.addSmokeMachine(location, size, strength)
     
     def setBackground(self, imageLocation):
-        self.background = background(imageLocation, [self.horizontalSize, self.verticalSize])
+        self.background.setBackground(imageLocation)
 
     def render(self):
         self.smoke.updateSmokeGrid()
+        
+        lightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
+        for light in self.lightList:
+            lightScreen += light.getLightScreen()
+        
+        smokeScreen = self.smoke.getSmokeScreen()
+        smokeScreen = np.stack([smokeScreen, smokeScreen, smokeScreen], -1)
+        # smokeScreen = np.array([smokeScreen, smokeScreen, smokeScreen])
+        litSmokeScreen = smokeScreen * lightScreen
 
-        output = np.zeros([self.verticalSize, self.horizontalSize, 3])
-        for x in range(0, self.horizontalSize):
-            for y in range(0, self.verticalSize):
-                newColor = self.cells[x][y].getColor(self.lightList, self.background, self.smoke)
-                output[y][x] = newColor
-                # print(self.cells[x][y].getColor(self.lightList))
-                
+        litBackdrop = lightScreen * self.background.getBackground() * (1 - smokeScreen)
+
+        output = litSmokeScreen + litBackdrop
+
+
         output /= max(1, output.max())
         # print("Max Colour: " + str(output.max()))
+
+        output = np.swapaxes(output, 0, 1)
+        # output = np.rot90(output, 1, [0, 1])
+        # output = np.flipud(output)
 
         return output
     

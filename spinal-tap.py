@@ -6,25 +6,25 @@ fps = 5
 
 startTime = time.monotonic()
 
-stage = SE.scene(512, 288, 0.1)
-stage.setBackground("Assignment V2/backdrop.png")
+stage = SE.Scene(512, 288, 0.1)
+stage.setBackground("backdrop.png")
 stage.addLight(400, -90, 10, 45, "red")
 stage.addLight(256, -90, 11, 90, "blue")
 stage.addLight(320, -70, 11, 80, "green")
 stage.addSmokeMachine([250, 100], 20, 11)
-print(time.monotonic() - startTime)
+# print(time.monotonic() - startTime)
 
 frames = []
 
 
 firstRun = True
-frameCount = 1
+frameCount = 10
 for i in range(0, frameCount):
-    frameStartTime = time.monotonic()
     print("Rendering frame " + str(i + 1) + " of " + str(frameCount))
-    image = stage.render()
-    frames.append(image)
-    print(time.monotonic() - frameStartTime)
+    frameStartTime = time.monotonic()
+    frame = stage.render()
+    frames.append(frame)
+    print("Frame render time: " + str(time.monotonic() - frameStartTime))
 
 
 
@@ -40,3 +40,6 @@ for i in range(0, len(frames)):
     plt.pause(1 / fps)
 
 plt.pause(1000000)
+
+# image = plt.imshow(stage.background.image)
+# plt.show()
