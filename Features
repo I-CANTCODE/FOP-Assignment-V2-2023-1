@@ -1,0 +1,36 @@
+Lights:
+    !Position
+    !Direction
+    !Spread Angle
+    !Colour
+    !Intensity
+    Reflects of smoke
+    Following Lights
+
+
+Smoke Machine:
+    !Position
+    !Direction
+    !Intensity(How much smoke comes out)
+
+Smoke:
+    !Cell based
+    !Diffuses
+
+Props/Band:
+    !Position
+    !Shape
+    Move
+    Interact with lighting
+    Interact with smoke
+
+Backdrop:
+    !Image rescales to background size
+    !Default to black
+
+Chorography: AHHHHHHHHHHHHH
+    !Control Lights
+    !Control Smoke Machine
+    !Control Props/Band
+    !Define initial positions
+    !Be read in from file
