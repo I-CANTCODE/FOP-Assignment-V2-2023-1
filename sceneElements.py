@@ -6,7 +6,7 @@ import time
 
 
 class Light:
-    def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, color, horizontalSize, verticalSize):
+    def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, width, color, horizontalSize, verticalSize):
         self.colorDictionary = {
             "red" : np.array([1.0, 0.0, 0.0]),
             "green" : np.array([0.0, 1.0, 0.0]),
@@ -22,6 +22,7 @@ class Light:
         self.spreadAngle = spreadAngle #angle in degrees
         self.minVisibleAngle = direction - spreadAngle / 2
         self.maxVisibleAngle = direction + spreadAngle / 2
+        self.width = width
         if color in self.colorDictionary:
             self.color = self.colorDictionary[color]
         else:
@@ -51,7 +52,7 @@ class Light:
             rightEdge = self.horizontalSize
             rightStep = 0
         else:
-            rightEdge = float(self.position[0])
+            rightEdge = float(self.position[0] + self.width)
             rightStep = 1 / math.tan(self.maxVisibleAngle / 180 * math.pi)
             # print(2)
 
@@ -224,8 +225,8 @@ class Scene:
         self.smoke = SmokeScreen(horizontalSize, verticalSize, baseSmoke)
         self.objectList = []
     
-    def addLight(self, xPosition, direction, strength, spreadAngle, color):
-        self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, color, self.horizontalSize, self.verticalSize))
+    def addLight(self, xPosition, direction, strength, spreadAngle, width, color):
+        self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, width, color, self.horizontalSize, self.verticalSize))
 
     def addSmokeMachine(self, location, size, strength):
         self.smoke.addSmokeMachine(location, size, strength)
