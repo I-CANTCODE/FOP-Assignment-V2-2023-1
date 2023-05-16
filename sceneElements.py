@@ -2,6 +2,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import time
 
 
 class Light:
@@ -157,12 +158,62 @@ class Background:
             image = cv2.resize(image, [self.horizontalSize, self.verticalSize])
             image = image.swapaxes(0, 1)
             self.image = image
-            print(image.shape)
-            print([self.horizontalSize, self.verticalSize])
+            # print([self.horizontalSize, self.verticalSize])
         except FileNotFoundError:
             print("File not Found")
+        except:
+            print("File Invalid")
+            self.image = np.zeros([self.horizontalSize, self.verticalSize, 3])
 
 
+
+class Object:
+    def __init__(self, imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize, screenHorizontalSize, screenVerticalSize):
+        self.horizontalPosition = horizontalPosition
+        self.verticalPosition = verticalPosition
+        self.horizontalSize = horizontalSize
+        self.screenHorizontalSize = screenHorizontalSize
+        self.screenVerticalSize = screenVerticalSize
+        try:
+            image = plt.imread(imageLocation)
+            image = np.rot90(image, rotation + 2, (0, 1))
+            if image.shape[2] == 3:
+                image = np.append(image, 1.0, 3)
+            
+            self.verticalSize = int(horizontalSize / image.shape[1] * image.shape[0])
+            image = cv2.resize(image, [horizontalSize, self.verticalSize])
+            self.image = image.swapaxes(0, 1)
+        except:
+            print("File Invalid")
+            self.image = np.zeros([horizontalSize, horizontalSize, 4])
+            self.verticalSize = horizontalSize
+    
+    def getObjectScreen(self):
+        screen = np.zeros([self.screenHorizontalSize, self.screenVerticalSize, 4])
+        # if self.horizontalPosition + self.horizontalSize < self.screenHorizontalSize:
+        #     maxX = self.horizontalSize
+        # else:
+        #     maxX = self.screenHorizontalSize - self.horizontalPosition
+        minX = max(0, -self.horizontalPosition)
+        maxX = min(self.horizontalSize, self.screenHorizontalSize - self.horizontalPosition)
+        maxX = max(0, maxX)
+        dX = maxX - minX
+        
+        
+        minY = max(0, -self.verticalPosition)
+        maxY = min(self.verticalSize, self.screenVerticalSize - self.verticalPosition)
+        maxY = max(0, maxY)
+        dY = maxY - minY
+        
+        xPos = max(0, self.horizontalPosition)
+        xPos = min(xPos, self.screenHorizontalSize)
+
+        yPos = max(0, self.verticalPosition)
+        yPos = min(yPos, self.screenVerticalSize)
+        # print(str(xPos) + " " + str(yPos))
+
+        screen[xPos:(xPos + dX), yPos:(yPos + dY)] = self.image[minX:maxX, minY:maxY]
+        return screen
 
 class Scene:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -171,7 +222,7 @@ class Scene:
         self.lightList = []
         self.background = Background(horizontalSize, verticalSize)
         self.smoke = SmokeScreen(horizontalSize, verticalSize, baseSmoke)
-
+        self.objectList = []
     
     def addLight(self, xPosition, direction, strength, spreadAngle, color):
         self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, color, self.horizontalSize, self.verticalSize))
@@ -179,11 +230,16 @@ class Scene:
     def addSmokeMachine(self, location, size, strength):
         self.smoke.addSmokeMachine(location, size, strength)
     
+    def addObject(self, imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize):
+        self.objectList.append(Object(imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize, self.horizontalSize, self.verticalSize))
+
     def setBackground(self, imageLocation):
         self.background.setBackground(imageLocation)
 
     def render(self):
+        # start = time.monotonic()
         self.smoke.updateSmokeGrid()
+        # print(time.monotonic() - start)
         
         lightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
         for light in self.lightList:
@@ -194,7 +250,18 @@ class Scene:
         # smokeScreen = np.array([smokeScreen, smokeScreen, smokeScreen])
         litSmokeScreen = smokeScreen * lightScreen
 
-        litBackdrop = lightScreen * self.background.getBackground() * (1 - smokeScreen)
+        backdrop = self.background.getBackground()
+        backdrop = np.fliplr(backdrop)
+ 
+        for object in self.objectList:
+            objectScreen = object.getObjectScreen()
+            alphaMask = objectScreen[:, :, 3]
+            alphaMask = np.stack([alphaMask, alphaMask, alphaMask], -1)
+            objectScreen = objectScreen[:, :, :3]
+            backdrop = alphaMask * objectScreen + (1.0 - alphaMask) * backdrop
+
+        litBackdrop = lightScreen * backdrop* (1 - smokeScreen)
+
 
         output = litSmokeScreen + litBackdrop
 
