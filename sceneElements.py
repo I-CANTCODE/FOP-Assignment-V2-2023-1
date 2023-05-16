@@ -22,7 +22,7 @@ class Light:
         self.spreadAngle = spreadAngle #angle in degrees
         self.minVisibleAngle = direction - spreadAngle / 2
         self.maxVisibleAngle = direction + spreadAngle / 2
-        self.width = width
+        self.width = width / math.sin(-direction * math.pi / 180)
         if color in self.colorDictionary:
             self.color = self.colorDictionary[color]
         else:
