@@ -2,16 +2,17 @@ import matplotlib.pyplot as plt
 import sceneElements as SE
 import time
 
-fps = 5
+fps = 12
 
 startTime = time.monotonic()
 
-stage = SE.Scene(512, 288, 0.1)
+stage = SE.Scene(512, 288, 0)
 stage.setBackground("backdrop.png")
 stage.addLight(400, -90, 10, 45, 0, "red")
 stage.addLight(256, -90, 11, 90, 0, "blue")
-stage.addLight(320, -70, 11, 0, 10, "green")
-stage.addSmokeMachine([250, 100], 20, 11)
+stage.addLight(320, -70, 8, 0, 10, "green")
+stage.addLight(256, -90, 3, 180, 0, "white")
+stage.addSmokeMachine([250, 100], 5, [20, 30])
 stage.addObject("drum.png", 0, 200, 5, 150)
 stage.addObject("guitar.png", 1, 350, 5, 50)
 # plt.imshow(stage.objectList[0].getObjectScreen())
