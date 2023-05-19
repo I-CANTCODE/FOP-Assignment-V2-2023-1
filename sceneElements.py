@@ -86,10 +86,11 @@ class Light:
 
 
 class smokeMachine:
-    def __init__(self, position, strength, velocity):
+    def __init__(self, position, strength, direction, speed):
         self.position = np.array(position)
         self.strength = strength
-        self.velocity = velocity
+        self.direction = direction
+        self.speed = speed
         # self.minX = max(location[0] - size, 0)
         # self.maxX = min(location[0] + size, horizontalSize)
         # self.minY = max(location[1] - size, 0)
@@ -98,10 +99,17 @@ class smokeMachine:
     def getNewSmoke(self):
         #Smoke[0] is positions
         #Smoke[1] is velocities
-        initialSpread = 10.0
-        smokePositions = (np.random.random([self.strength, 2]) - 0.5)  * initialSpread + self.position
-        velocitySpread = 2.0
-        smokeVelocities = (np.random.random([self.strength, 2]) - 0.5) * velocitySpread + self.velocity
+        angleSpread = 30.0
+        speedSpread = 100.0
+        positionSpread = 20
+        smokeAngles = self.direction + angleSpread * (np.random.random([self.strength]) * 2 - 1)
+        # print(np.max(smokeAngles))
+        smokeSpeeds = self.speed + speedSpread * np.random.random([self.strength])
+        smokePositions = (np.random.random([self.strength, 2]) - 0.5)  * positionSpread + self.position
+        smokeVelocities = np.array([np.cos(np.deg2rad(smokeAngles)), np.sin(np.deg2rad(smokeAngles))]) * smokeSpeeds
+        smokeVelocities = np.swapaxes(smokeVelocities, 0, 1)
+        # print(smokePositions)
+        # print(smokeVelocities)
         newSmoke = np.array([smokePositions, smokeVelocities])
         return newSmoke
     # def setSmoke(self, smokeGridView):
@@ -115,15 +123,16 @@ class SmokeScreen:
         self.verticalSize = verticalSize
         self.baseSmoke = baseSmoke
         self.smokeScreen = np.zeros([horizontalSize, verticalSize]) + baseSmoke
-        self.particleSize = 20
+        self.particleSize = 10
         self.smokeMachines = []
         self.smokeParticlePositions = np.array([[]])
         self.smokeParticleVelocities = np.array([[]])
+        self.smokeParticleIntensities = np.array([])
         self.velocityScreen = self.getNewVelocityScreen()
 
     
-    def addSmokeMachine(self, location, strength, velocity):
-        self.smokeMachines.append(smokeMachine(location, strength, velocity))
+    def addSmokeMachine(self, position, strength, direction, speed):
+        self.smokeMachines.append(smokeMachine(position, strength, direction, speed))
     
     def getSmoke(self, location):
         return self.smokeScreen[location[0]][location[1]]
@@ -133,25 +142,33 @@ class SmokeScreen:
 
     def getNewVelocityScreen(self):
         rescaleFactor = 100
-        maxVelocity = 10
-        velocityScreen = 10 * np.random.random([int(self.horizontalSize / rescaleFactor), int(self.verticalSize / rescaleFactor), 2])
-        velocityScreen = cv2.resize(velocityScreen, [self.verticalSize, self.horizontalSize])[:, :, :2]
+        velocityScreen = np.random.random([int(self.horizontalSize / rescaleFactor), int(self.verticalSize / rescaleFactor), 2])
+        velocityScreen = cv2.resize(velocityScreen, [self.verticalSize, self.horizontalSize])[:, :, :2] * 2 - 1
+        velocityScreen *= 200
+        # print("max: " + str(np.max(velocityScreen)))
+        # print("min: " + str(np.min(velocityScreen)))
         return velocityScreen
     
 
-    def updateSmokeScreen(self):
-        tempScreen = self.smokeScreen.copy()
-        #move particles
-        velocityRetention = 0.8
-        self.smokeParticleVelocities *= velocityRetention
+    def updateSmokeScreen(self, dt):
+        # tempScreen = self.smokeScreen.copy()
         # print(self.velocityScreen.shape)
         # print(self.smokeParticlePositions.size)
         if self.smokeParticlePositions.size != 0:
+            #if particles exist move particles
+            velocityRetention = 0.94
+            velocityRandom = 0.03
+            self.smokeParticleVelocities *= velocityRetention
+            self.smokeParticleVelocities += 20 *  velocityRandom * np.random.normal(size = self.smokeParticleVelocities.shape)
+
+            particleLife = 10.0
+            self.smokeParticleIntensities -= dt / particleLife
+
             for i in range(0, len(self.smokeParticlePositions)):
                 # print(self.smokeParticlePositions[i].astype(int))
                 position = self.smokeParticlePositions[i].astype(int)
-                self.smokeParticleVelocities[i] += (1 - velocityRetention) * self.velocityScreen[position[0], position[1]]
-            self.smokeParticlePositions += self.smokeParticleVelocities
+                self.smokeParticleVelocities[i] += (1 - velocityRetention -velocityRandom) * self.velocityScreen[position[0], position[1]]
+            self.smokeParticlePositions += self.smokeParticleVelocities * dt
 
             #create new particles
             for smokeMachine in self.smokeMachines:
@@ -160,33 +177,39 @@ class SmokeScreen:
                 # print(self.smokeParticlePositions)
                 self.smokeParticlePositions = np.append(self.smokeParticlePositions, newSmokeParticles[0], 0)
                 self.smokeParticleVelocities = np.append(self.smokeParticleVelocities, newSmokeParticles[1], 0)
-        
+                self.smokeParticleIntensities = np.append(self.smokeParticleIntensities, np.ones([newSmokeParticles.shape[1]]))
         else:
+            #if no particles exist create new particles
             for smokeMachine in self.smokeMachines:
                 newSmokeParticles = smokeMachine.getNewSmoke()
                 # print(newSmokeParticles[0].shape)
                 # print(self.smokeParticlePositions)
                 self.smokeParticlePositions = newSmokeParticles[0]
                 self.smokeParticleVelocities = newSmokeParticles[1]
+                self.smokeParticleIntensities = np.ones([newSmokeParticles.shape[1]])
+
         
         # print(self.smokeGrid)
+        # print(self.smokeParticleIntensities.shape, self.smokeParticlePositions.shape)
 
         newSmokeScreen = np.zeros([self.horizontalSize + 2 * self.particleSize, self.verticalSize + 2 * self.particleSize]) + self.baseSmoke
         toDelete = []
         for i in range(0, len(self.smokeParticlePositions)):
             smokeParticlePosition = self.smokeParticlePositions[i]
             # print(smokeParticlePosition)
-            if min(smokeParticlePosition) < 0 or max(smokeParticlePosition) > max(self.horizontalSize, self.verticalSize):
+            if min(smokeParticlePosition) < 0 or smokeParticlePosition[0] > self.horizontalSize or smokeParticlePosition[1] > self.verticalSize or self.smokeParticleIntensities[i] <= 0:
                 toDelete.append(i)
             else:
                 endPosition = smokeParticlePosition + self.particleSize
-                # print(smokeParticlePosition)
-                newSmokeScreen[int(smokeParticlePosition[0]):int(endPosition[0]), int(smokeParticlePosition[1]):int(endPosition[1])] += 1.0
+                # print(self.smokeParticleIntensities[i])
+                newSmokeScreen[int(smokeParticlePosition[0]):int(endPosition[0]), int(smokeParticlePosition[1]):int(endPosition[1])] += self.smokeParticleIntensities[i]
         
         self.smokeParticlePositions = np.delete(self.smokeParticlePositions, toDelete, 0)
         self.smokeParticleVelocities = np.delete(self.smokeParticleVelocities, toDelete, 0)
+        self.smokeParticleIntensities = np.delete(self.smokeParticleIntensities, toDelete, 0)
 
-        blurSize = 50
+
+        blurSize = 40
         newSmokeScreen = cv2.blur(newSmokeScreen[self.particleSize:-self.particleSize, self.particleSize:-self.particleSize], [blurSize, blurSize])
         self.smokeScreen =  np.clip(newSmokeScreen, 0, 1)
 
@@ -281,8 +304,8 @@ class Scene:
     def addLight(self, xPosition, direction, strength, spreadAngle, width, color):
         self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, width, color, self.horizontalSize, self.verticalSize))
 
-    def addSmokeMachine(self, location, strength, velocity):
-        self.smoke.addSmokeMachine(location, strength, velocity)
+    def addSmokeMachine(self, position, strength, direction, speed):
+        self.smoke.addSmokeMachine(position, strength, direction, speed)
     
     def addObject(self, imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize):
         self.objectList.append(Object(imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize, self.horizontalSize, self.verticalSize))
@@ -290,9 +313,9 @@ class Scene:
     def setBackground(self, imageLocation):
         self.background.setBackground(imageLocation)
 
-    def render(self):
+    def render(self, dt):
         # start = time.monotonic()
-        self.smoke.updateSmokeScreen()
+        self.smoke.updateSmokeScreen(dt)
         # print(time.monotonic() - start)
         
         lightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
