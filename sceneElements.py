@@ -4,14 +4,25 @@ import matplotlib.pyplot as plt
 import cv2
 import time
 
+class end(Exception):
+    pass
+
+def lerp(min, max, fraction):
+    #Returns a value between min and max, linearly proportional to fraction
+    return min * (1 - fraction) + max * fraction
 
 class Light:
-    def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, width, color, horizontalSize, verticalSize):
+    def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, width, color, instructionSet, horizontalSize, verticalSize):
         self.position = np.array([xPosition, yPosition])
         self.setDirection(direction)
         self.setStrength(strength)
         self.setSpreadAngle(spreadAngle) #angle in degrees
         self.setWidth(width)
+
+        self.instructionIndex = 0
+        self.instructionSet = instructionSet
+        self.time = 0
+        self.halted = False
 
         self.horizontalSize = horizontalSize
         self.verticalSize = verticalSize
@@ -103,7 +114,40 @@ class Light:
     def setStrength(self, strength):
         self.strength = strength
         self.changed = True
-    
+
+    def update(self, dt):
+        #Instruction Set:Move to, Loop To(Row Index), Hold, Stop, End(Kills whole program)
+        if self.halted == False:
+            self.time += dt
+            instruction = self.instructionSet.iloc[self.instructionIndex]
+            # print(instruction)
+            if self.time > instruction.get("End Time"):
+                self.instructionIndex += 1
+            currentInstruction = instruction.get("Instruction")
+            if currentInstruction == None:
+                self.halted = True
+            elif currentInstruction == "Move To":
+                remainingTime = instruction.get("End Time") - self.time
+                moveFraction = min(dt / remainingTime, 1)
+                self.setColor(instruction.get("Color"))
+                self.setDirection(lerp(self.direction, instruction.get("Direction"), moveFraction))
+                self.setSpreadAngle(lerp(self.spreadAngle, instruction.get("Spread Angle"), moveFraction))
+                self.setStrength(lerp(self.strength, instruction.get("Strength"), moveFraction))
+                self.setWidth(lerp(self.width, instruction.get("Width"), moveFraction))
+
+            elif currentInstruction == "Loop To":
+                self.instructionIndex = int(instruction.get("Loop To Index"))
+                if self.instructionIndex == 0:
+                    self.time = 0
+                else:
+                    self.time = instruction.get("End Time").get(self.instructionIndex - 1)
+            elif currentInstruction == "Hold":
+                pass
+            elif currentInstruction == "Stop":
+                self.halted = True
+            elif currentInstruction == "End":
+                raise(end)
+
 
 
 
@@ -113,6 +157,7 @@ class smokeMachine:
         self.setStrength(strength)
         self.setDirection(direction)
         self.setSpeed(speed)
+        self.halted = False
         # self.minX = max(location[0] - size, 0)
         # self.maxX = min(location[0] + size, horizontalSize)
         # self.minY = max(location[1] - size, 0)
@@ -145,6 +190,8 @@ class smokeMachine:
     
     def setSpeed(self, speed):
         self.speed = speed
+    
+
 
 class SmokeScreen:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -222,20 +269,22 @@ class SmokeScreen:
         # print(self.smokeParticleIntensities.shape, self.smokeParticlePositions.shape)
 
         newSmokeScreen = np.zeros([self.horizontalSize + 2 * self.particleSize, self.verticalSize + 2 * self.particleSize]) + self.baseSmoke
-        toDelete = []
-        for i in range(0, len(self.smokeParticlePositions)):
-            smokeParticlePosition = self.smokeParticlePositions[i]
-            # print(smokeParticlePosition)
-            if min(smokeParticlePosition) < 0 or smokeParticlePosition[0] > self.horizontalSize or smokeParticlePosition[1] > self.verticalSize or self.smokeParticleIntensities[i] <= 0:
-                toDelete.append(i)
-            else:
-                endPosition = smokeParticlePosition + self.particleSize
-                # print(self.smokeParticleIntensities[i])
-                newSmokeScreen[int(smokeParticlePosition[0]):int(endPosition[0]), int(smokeParticlePosition[1]):int(endPosition[1])] += self.smokeParticleIntensities[i]
-        
-        self.smokeParticlePositions = np.delete(self.smokeParticlePositions, toDelete, 0)
-        self.smokeParticleVelocities = np.delete(self.smokeParticleVelocities, toDelete, 0)
-        self.smokeParticleIntensities = np.delete(self.smokeParticleIntensities, toDelete, 0)
+        # print(self.smokeParticlePositions.size)
+        if self.smokeParticlePositions.size > 0:
+            toDelete = []
+            for i in range(0, len(self.smokeParticlePositions)):
+                smokeParticlePosition = self.smokeParticlePositions[i]
+                print(len(smokeParticlePosition))
+                if min(smokeParticlePosition) < 0 or smokeParticlePosition[0] > self.horizontalSize or smokeParticlePosition[1] > self.verticalSize or self.smokeParticleIntensities[i] <= 0:
+                    toDelete.append(i)
+                else:
+                    endPosition = smokeParticlePosition + self.particleSize
+                    # print(self.smokeParticleIntensities[i])
+                    newSmokeScreen[int(smokeParticlePosition[0]):int(endPosition[0]), int(smokeParticlePosition[1]):int(endPosition[1])] += self.smokeParticleIntensities[i]
+
+            self.smokeParticlePositions = np.delete(self.smokeParticlePositions, toDelete, 0)
+            self.smokeParticleVelocities = np.delete(self.smokeParticleVelocities, toDelete, 0)
+            self.smokeParticleIntensities = np.delete(self.smokeParticleIntensities, toDelete, 0)
 
 
         blurSize = 40
@@ -333,8 +382,8 @@ class Scene:
         self.smoke = SmokeScreen(horizontalSize, verticalSize, baseSmoke)
         self.objectList = []
     
-    def addLight(self, xPosition, direction, strength, spreadAngle, width, color):
-        self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, width, color, self.horizontalSize, self.verticalSize))
+    def addLight(self, xPosition, direction, strength, spreadAngle, width, color, instructionSet):
+        self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, width, color, instructionSet, self.horizontalSize, self.verticalSize))
 
     def addSmokeMachine(self, position, strength, direction, speed):
         self.smoke.addSmokeMachine(position, strength, direction, speed)
@@ -352,6 +401,7 @@ class Scene:
         
         lightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
         for light in self.lightList:
+            light.update(dt)
             lightScreen += light.getLightScreen()
         
         smokeScreen = self.smoke.getSmokeScreen()

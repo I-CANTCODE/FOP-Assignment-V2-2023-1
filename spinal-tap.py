@@ -1,51 +1,88 @@
 import matplotlib.pyplot as plt
 import sceneElements as SE
 import time
+import pandas
+import math
+
+class failedStageInit(Exception):
+    pass
+class missingValue(Exception):
+    def __init__(self, type, rowIndex):
+        print("Recquired value is missing from input file for " + type + " in row " + str(2 + rowIndex))
 
 fps = 12
 
 startTime = time.monotonic()
 
-stage = SE.Scene(512, 288, 0)
-stage.setBackground("backdrop.png")
-stage.addLight(400, -90, 10, 45, 0, "red")
-stage.addLight(256, -90, 11, 90, 0, "blue")
-stage.addLight(320, -70, 8, 0, 10, "green")
-stage.addLight(256, -90, 3, 180, 0, "white")
-stage.addSmokeMachine([250, 100], 5, [20, 30])
-stage.addObject("drum.png", 0, 200, 5, 150)
-stage.addObject("guitar.png", 1, 350, 5, 50)
+try:
+    choreogrpahy = pandas.read_excel("Choreography.xlsx", None)
+    init = choreogrpahy['init']
+
+    if init.get("Type").get(1) != "Stage":
+        raise failedStageInit
+    # print(init)
+    isNull = init.loc[1].isna().to_list()
+    # print(isNull)
+    if True in isNull[1:4]:
+        raise missingValue("stage", 1)
+    horizontalSize = init.get('a').get(1)
+    verticalSize = init.get('b').get(1)
+    baseSmoke = init.get('c').get(1)
+
+    stage = SE.Scene(horizontalSize, verticalSize, baseSmoke)
+    
+    if isNull[5] == False:
+        stage.setBackground(init.get('d').get(1))
+
+    # if init.iloc(1):
+
+    for rowIndex in range(0, len(init.index)):
+        row = init.iloc[rowIndex]
+        # print(row)
+        if row.get("Type") == "Light":
+            rowNulls = row.isna().to_list()
+            # print(rowNulls)
+            if True in rowNulls[1:]:
+                raise missingValue("light", rowIndex)
+            horizontalPosition = row.get('b')
+            direction = row.get('c')
+            strength = row.get('d')
+            spreadAngle = row.get('e')
+            width = row.get('f')
+            color = row.get('g')
+            instructionSet = choreogrpahy[row.get('a')]
+            stage.addLight(horizontalPosition, direction, strength, spreadAngle, width, color, instructionSet)
+
+    firstRun = True
+    dt = 0
+    image = plt.imshow(stage.render(0), origin='lower')
+    plt.draw()
+    for i in range(10000):
+        startTime = time.monotonic()
+        image.set_data(stage.render(dt))
+        plt.draw()
+        plt.pause(0.0001)
+        lastTime = time.monotonic()
+        dt =  lastTime - startTime
+        # print("FPS: " + str(1 / (lastTime - startTime)))
+except failedStageInit:
+    print("Stage init failed")
+except missingValue:
+    pass
+except FileNotFoundError:
+    print("Choreography file was not found")
+
+# stage = SE.Scene(512, 288, 0)
+# stage.setBackground("backdrop.png")
+# stage.addLight(400, -90, 10, 45, 0, "red")
+# stage.addLight(256, -90, 11, 90, 0, "blue")
+# stage.addLight(320, -70, 8, 0, 10, "green")
+# stage.addLight(256, -90, 3, 180, 0, "white")
+# stage.addSmokeMachine([100, 50], 5, 30, 200)
+# stage.addObject("drum.png", 0, [200, 5], 150)
+# stage.addObject("guitar.png", 1, [350, 5], 50)
 # plt.imshow(stage.objectList[0].getObjectScreen())
 # plt.show()
 # print(time.monotonic() - startTime)
 
-frames = []
 
-
-firstRun = True
-frameCount = 10
-lastFrameTime = .75
-for i in range(0, frameCount):
-    print("Rendering frame " + str(i + 1) + " of " + str(frameCount) + ". Time Remaining = " + str((frameCount - i) * lastFrameTime)[:4] + "s")
-    frameStartTime = time.monotonic()
-    frame = stage.render()
-    frames.append(frame)
-    lastFrameTime = time.monotonic() - frameStartTime
-
-
-
-firstRun = True
-for i in range(0, len(frames)):
-    # image = None
-    if firstRun:
-        image = plt.imshow(frames[i], origin="lower")
-    else:
-        image.set_data(frames[i])
-    
-    plt.draw()
-    plt.pause(1 / fps)
-
-plt.pause(1000000)
-
-# image = plt.imshow(stage.background.image)
-# plt.show()

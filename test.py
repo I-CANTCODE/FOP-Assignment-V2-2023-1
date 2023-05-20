@@ -3,6 +3,12 @@ import matplotlib.pyplot as plt
 import time
 import sceneElements as se
 import cv2
+import pandas
+
+df = pandas.read_excel("Choreography.xlsx", "Light1")
+print(df)
+print(df.get(1))
+
 
 # plt.imshow(se.SmokeScreen(500, 500, 0).velocityScreen[:, :, 0])
 # plt.draw()
