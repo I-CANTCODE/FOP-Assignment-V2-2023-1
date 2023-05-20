@@ -7,53 +7,37 @@ import time
 
 class Light:
     def __init__(self, xPosition, yPosition, direction, strength, spreadAngle, width, color, horizontalSize, verticalSize):
-        self.colorDictionary = {
-            "red" : np.array([1.0, 0.0, 0.0]),
-            "green" : np.array([0.0, 1.0, 0.0]),
-            "blue" : np.array([0.0, 0.0, 1.0]),
-            "yellow" : np.array([1.0, 1.0, 0.0]),
-            "cyan" : np.array([0.0, 1.0, 1.0]),
-            "magenta" : np.array([1.0, 0.0, 1.0]),
-            "white" : np.array([1.0, 1.0, 1.0])
-        }
         self.position = np.array([xPosition, yPosition])
-        self.direction = direction #angle in degrees 0 = right, 90 = up, between -180 and +180
-        self.strength = strength #0 to 11
-        self.spreadAngle = spreadAngle #angle in degrees
-        self.minVisibleAngle = direction - spreadAngle / 2
-        self.maxVisibleAngle = direction + spreadAngle / 2
-        self.width = width / math.sin(-direction * math.pi / 180)
-        if color in self.colorDictionary:
-            self.color = self.colorDictionary[color]
-        else:
-            print("Error: Colour " + str(color) + " is invalid")
-            self.color = self.colorDictionary["white"]
-        
-        self.color *= strength / 11.0
+        self.setDirection(direction)
+        self.setStrength(strength)
+        self.setSpreadAngle(spreadAngle) #angle in degrees
+        self.setWidth(width)
 
         self.horizontalSize = horizontalSize
         self.verticalSize = verticalSize
-
+        self.setColor(color)
         self.lightScreen = self.getNewLightScreen()
         self.changed = False
     
     def getNewLightScreen(self):
+        minVisibleAngle = self.direction - self.spreadAngle / 2
+        maxVisibleAngle = self.direction + self.spreadAngle / 2
         newLightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
-        if self.minVisibleAngle <= -180:
+        if minVisibleAngle <= -180:
             leftEdge = 0
             leftStep = 0
             # print(1)
         else:
             leftEdge = float(self.position[0])
-            leftStep = 1 / math.tan(self.minVisibleAngle / 180 * math.pi)
+            leftStep = 1 / math.tan(minVisibleAngle / 180 * math.pi)
         
         # print(self.maxVisibleAngle)
-        if self.maxVisibleAngle >= 0:
+        if maxVisibleAngle >= 0:
             rightEdge = self.horizontalSize
             rightStep = 0
         else:
             rightEdge = float(self.position[0] + self.width)
-            rightStep = 1 / math.tan(self.maxVisibleAngle / 180 * math.pi)
+            rightStep = 1 / math.tan(maxVisibleAngle / 180 * math.pi)
             # print(2)
 
         for y in range(self.verticalSize - 1, -1, -1):
@@ -82,15 +66,53 @@ class Light:
         if self.changed:
             self.lightScreen = self.getNewLightScreen()
         return self.lightScreen
+    
+    def setColor(self, color):
+        colorDictionary = {
+            "red" : np.array([1.0, 0.0, 0.0]),
+            "green" : np.array([0.0, 1.0, 0.0]),
+            "blue" : np.array([0.0, 0.0, 1.0]),
+            "yellow" : np.array([1.0, 1.0, 0.0]),
+            "cyan" : np.array([0.0, 1.0, 1.0]),
+            "magenta" : np.array([1.0, 0.0, 1.0]),
+            "white" : np.array([1.0, 1.0, 1.0])
+        }
+        if color in colorDictionary:
+            self.color = colorDictionary[color]
+        else:
+            print("Error: Colour " + str(color) + " is invalid")
+            self.color = colorDictionary["white"]
+        
+        self.color *= self.strength / 11.0
+
+        self.changed = True
+
+    def setDirection(self, direction):
+        self.direction = direction
+        self.changed = True
+
+
+    def setWidth(self, width):
+        self.width = width / math.sin(-self.direction * math.pi / 180)
+        self.changed = True
+
+    def setSpreadAngle(self, spreadAngle):
+        self.spreadAngle = spreadAngle
+        self.changed = True
+
+    def setStrength(self, strength):
+        self.strength = strength
+        self.changed = True
+    
 
 
 
 class smokeMachine:
     def __init__(self, position, strength, direction, speed):
         self.position = np.array(position)
-        self.strength = strength
-        self.direction = direction
-        self.speed = speed
+        self.setStrength(strength)
+        self.setDirection(direction)
+        self.setSpeed(speed)
         # self.minX = max(location[0] - size, 0)
         # self.maxX = min(location[0] + size, horizontalSize)
         # self.minY = max(location[1] - size, 0)
@@ -115,7 +137,14 @@ class smokeMachine:
     # def setSmoke(self, smokeGridView):
     #     smokeGridView[self.minX:self.maxX, self.minY:self.maxY] = self.strength / 11 * 0.8
 
-
+    def setStrength(self, strength):
+        self.strength = strength
+    
+    def setDirection(self, direction):
+        self.direction = direction
+    
+    def setSpeed(self, speed):
+        self.speed = speed
 
 class SmokeScreen:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -245,9 +274,8 @@ class Background:
 
 
 class Object:
-    def __init__(self, imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize, screenHorizontalSize, screenVerticalSize):
-        self.horizontalPosition = horizontalPosition
-        self.verticalPosition = verticalPosition
+    def __init__(self, imageLocation, rotation, position, horizontalSize, screenHorizontalSize, screenVerticalSize):
+        self.setPosition(position)
         self.horizontalSize = horizontalSize
         self.screenHorizontalSize = screenHorizontalSize
         self.screenVerticalSize = screenVerticalSize
@@ -291,6 +319,10 @@ class Object:
 
         screen[xPos:(xPos + dX), yPos:(yPos + dY)] = self.image[minX:maxX, minY:maxY]
         return screen
+    
+    def setPosition(self, position):
+        self.horizontalPosition = position[0]
+        self.verticalPosition = position[1] 
 
 class Scene:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -307,8 +339,8 @@ class Scene:
     def addSmokeMachine(self, position, strength, direction, speed):
         self.smoke.addSmokeMachine(position, strength, direction, speed)
     
-    def addObject(self, imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize):
-        self.objectList.append(Object(imageLocation, rotation, horizontalPosition, verticalPosition, horizontalSize, self.horizontalSize, self.verticalSize))
+    def addObject(self, imageLocation, rotation, position, horizontalSize):
+        self.objectList.append(Object(imageLocation, rotation, position, horizontalSize, self.horizontalSize, self.verticalSize))
 
     def setBackground(self, imageLocation):
         self.background.setBackground(imageLocation)
