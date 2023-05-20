@@ -120,15 +120,17 @@ class Light:
         if self.halted == False:
             self.time += dt
             instruction = self.instructionSet.iloc[self.instructionIndex]
-            # print(instruction)
             if self.time > instruction.get("End Time"):
-                self.instructionIndex += 1
+                self.instructionIndex += 1# print(instruction)
             currentInstruction = instruction.get("Instruction")
             if currentInstruction == None:
                 self.halted = True
             elif currentInstruction == "Move To":
                 remainingTime = instruction.get("End Time") - self.time
-                moveFraction = min(dt / remainingTime, 1)
+                if remainingTime == 0:
+                    moveFraction = 1
+                else:
+                    moveFraction = min(dt / remainingTime, 1)
                 self.setColor(instruction.get("Color"))
                 self.setDirection(lerp(self.direction, instruction.get("Direction"), moveFraction))
                 self.setSpreadAngle(lerp(self.spreadAngle, instruction.get("Spread Angle"), moveFraction))
@@ -152,12 +154,15 @@ class Light:
 
 
 class smokeMachine:
-    def __init__(self, position, strength, direction, speed):
+    def __init__(self, position, strength, direction, speed, instructionSet):
         self.position = np.array(position)
         self.setStrength(strength)
         self.setDirection(direction)
         self.setSpeed(speed)
+        self.instructionSet = instructionSet
         self.halted = False
+        self.time = 0
+        self.instructionIndex = 0
         # self.minX = max(location[0] - size, 0)
         # self.maxX = min(location[0] + size, horizontalSize)
         # self.minY = max(location[1] - size, 0)
@@ -183,7 +188,7 @@ class smokeMachine:
     #     smokeGridView[self.minX:self.maxX, self.minY:self.maxY] = self.strength / 11 * 0.8
 
     def setStrength(self, strength):
-        self.strength = strength
+        self.strength = int(strength)
     
     def setDirection(self, direction):
         self.direction = direction
@@ -191,7 +196,39 @@ class smokeMachine:
     def setSpeed(self, speed):
         self.speed = speed
     
+    def update(self, dt):
+        #Instruction Set:Move to, Loop To(Row Index), Hold, Stop, End(Kills whole program)
+        if self.halted == False:
+            self.time += dt
+            instruction = self.instructionSet.iloc[self.instructionIndex]
+            # print(instruction)
+            if self.time > instruction.get("End Time"):
+                self.instructionIndex += 1            
+            currentInstruction = instruction.get("Instruction")
+            if currentInstruction == None:
+                self.halted = True
+            elif currentInstruction == "Move To":
+                remainingTime = instruction.get("End Time") - self.time
+                if remainingTime == 0:
+                    moveFraction = 1
+                else:
+                    moveFraction = min(dt / remainingTime, 1)
+                self.setDirection(lerp(self.direction, instruction.get("Direction"), moveFraction))
+                self.setStrength(lerp(self.strength, instruction.get("Strength"), moveFraction))
+                self.setSpeed(lerp(self.speed, instruction.get("Speed"), moveFraction))
 
+            elif currentInstruction == "Loop To":
+                self.instructionIndex = int(instruction.get("Loop To Index"))
+                if self.instructionIndex == 0:
+                    self.time = 0
+                else:
+                    self.time = instruction.get("End Time").get(self.instructionIndex - 1)
+            elif currentInstruction == "Hold":
+                pass
+            elif currentInstruction == "Stop":
+                self.halted = True
+            elif currentInstruction == "End":
+                raise(end)
 
 class SmokeScreen:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -207,8 +244,8 @@ class SmokeScreen:
         self.velocityScreen = self.getNewVelocityScreen()
 
     
-    def addSmokeMachine(self, position, strength, direction, speed):
-        self.smokeMachines.append(smokeMachine(position, strength, direction, speed))
+    def addSmokeMachine(self, position, strength, direction, speed, instructionSet):
+        self.smokeMachines.append(smokeMachine(position, strength, direction, speed, instructionSet))
     
     def getSmoke(self, location):
         return self.smokeScreen[location[0]][location[1]]
@@ -230,6 +267,10 @@ class SmokeScreen:
         # tempScreen = self.smokeScreen.copy()
         # print(self.velocityScreen.shape)
         # print(self.smokeParticlePositions.size)
+        for smokeMachine in self.smokeMachines:
+            smokeMachine.update(dt)
+        
+
         if self.smokeParticlePositions.size != 0:
             #if particles exist move particles
             velocityRetention = 0.94
@@ -274,7 +315,7 @@ class SmokeScreen:
             toDelete = []
             for i in range(0, len(self.smokeParticlePositions)):
                 smokeParticlePosition = self.smokeParticlePositions[i]
-                print(len(smokeParticlePosition))
+                # print(len(smokeParticlePosition))
                 if min(smokeParticlePosition) < 0 or smokeParticlePosition[0] > self.horizontalSize or smokeParticlePosition[1] > self.verticalSize or self.smokeParticleIntensities[i] <= 0:
                     toDelete.append(i)
                 else:
@@ -296,7 +337,7 @@ class Background:
         self.horizontalSize = horizontalSize
         self.verticalSize = verticalSize
         self.image = np.zeros([horizontalSize, verticalSize, 3])
-
+    
     def getBackground(self):
         return self.image
 
@@ -323,11 +364,17 @@ class Background:
 
 
 class Object:
-    def __init__(self, imageLocation, rotation, position, horizontalSize, screenHorizontalSize, screenVerticalSize):
+    def __init__(self, imageLocation, rotation, position, horizontalSize, instructionSet, screenHorizontalSize, screenVerticalSize):
         self.setPosition(position)
         self.horizontalSize = horizontalSize
         self.screenHorizontalSize = screenHorizontalSize
         self.screenVerticalSize = screenVerticalSize
+        
+        self.instructionSet = instructionSet
+        self.halted = False
+        self.time = 0
+        self.instructionIndex = 0
+        
         try:
             image = plt.imread(imageLocation)
             image = np.rot90(image, rotation + 2, (0, 1))
@@ -370,8 +417,43 @@ class Object:
         return screen
     
     def setPosition(self, position):
-        self.horizontalPosition = position[0]
-        self.verticalPosition = position[1] 
+        self.horizontalPosition = int(position[0])
+        self.verticalPosition = int(position[1])
+    
+    def update(self, dt):
+        #Instruction Set:Move to, Loop To(Row Index), Hold, Stop, End(Kills whole program)
+        if self.halted == False:
+            self.time += dt
+            instruction = self.instructionSet.iloc[self.instructionIndex]
+            # print(instruction)
+            if self.time > instruction.get("End Time"):
+                self.instructionIndex += 1
+            
+            currentInstruction = instruction.get("Instruction")
+            if currentInstruction == None:
+                self.halted = True
+            elif currentInstruction == "Move To":
+                remainingTime = instruction.get("End Time") - self.time
+                if remainingTime == 0:
+                    moveFraction = 1
+                else:
+                    moveFraction = min(dt / remainingTime, 1)
+                horizontalPosition = lerp(self.horizontalPosition, instruction.get("Horizontal Position"), moveFraction)
+                verticalPosition = lerp(self.verticalPosition, instruction.get("Vertical Position"), moveFraction)
+                self.setPosition([horizontalPosition, verticalPosition])
+            
+            elif currentInstruction == "Loop To":
+                self.instructionIndex = int(instruction.get("Loop To Index"))
+                if self.instructionIndex == 0:
+                    self.time = 0
+                else:
+                    self.time = instruction.get("End Time").get(self.instructionIndex - 1)
+            elif currentInstruction == "Hold":
+                pass
+            elif currentInstruction == "Stop":
+                self.halted = True
+            elif currentInstruction == "End":
+                raise(end) 
 
 class Scene:
     def __init__(self, horizontalSize, verticalSize, baseSmoke):
@@ -385,11 +467,11 @@ class Scene:
     def addLight(self, xPosition, direction, strength, spreadAngle, width, color, instructionSet):
         self.lightList.append(Light(xPosition, self.verticalSize, direction, strength, spreadAngle, width, color, instructionSet, self.horizontalSize, self.verticalSize))
 
-    def addSmokeMachine(self, position, strength, direction, speed):
-        self.smoke.addSmokeMachine(position, strength, direction, speed)
+    def addSmokeMachine(self, position, strength, direction, speed, instructionSet):
+        self.smoke.addSmokeMachine(position, strength, direction, speed, instructionSet)
     
-    def addObject(self, imageLocation, rotation, position, horizontalSize):
-        self.objectList.append(Object(imageLocation, rotation, position, horizontalSize, self.horizontalSize, self.verticalSize))
+    def addObject(self, imageLocation, rotation, position, horizontalSize, instructionSet):
+        self.objectList.append(Object(imageLocation, rotation, position, horizontalSize, instructionSet, self.horizontalSize, self.verticalSize))
 
     def setBackground(self, imageLocation):
         self.background.setBackground(imageLocation)
@@ -413,6 +495,7 @@ class Scene:
         backdrop = np.fliplr(backdrop)
 
         for object in self.objectList:
+            object.update(dt)
             objectScreen = object.getObjectScreen()
             alphaMask = objectScreen[:, :, 3]
             alphaMask = np.stack([alphaMask, alphaMask, alphaMask], -1)

@@ -31,7 +31,7 @@ try:
 
     stage = SE.Scene(horizontalSize, verticalSize, baseSmoke)
     
-    if isNull[5] == False:
+    if isNull[4] == False:
         stage.setBackground(init.get('d').get(1))
 
     # if init.iloc(1):
@@ -52,7 +52,34 @@ try:
             color = row.get('g')
             instructionSet = choreogrpahy[row.get('a')]
             stage.addLight(horizontalPosition, direction, strength, spreadAngle, width, color, instructionSet)
-
+        
+        
+        elif row.get("Type") == "Smoke Machine":
+            rowNulls = row.isna().to_list()
+            # print(rowNulls)
+            if True in rowNulls[1:6]:
+                raise missingValue("smokeMachine", rowIndex)
+            position = [row.get('b'), row.get('c')]
+            strength = row.get('d')
+            direction = row.get('e')
+            speed = row.get('f')
+            instructionSet = choreogrpahy[row.get('a')]
+            stage.addSmokeMachine(position, strength, direction, speed, instructionSet)
+        
+        
+        elif row.get("Type") == "Object":
+            rowNulls = row.isna().to_list()
+            # print(rowNulls)
+            if True in rowNulls[1:6]:
+                raise missingValue("smokeMachine", rowIndex)
+            imageLocation = row.get('b')
+            position = [row.get('c'), row.get('d')]
+            horizontalSize = row.get('e')
+            rotation = row.get('f')
+            instructionSet = choreogrpahy[row.get('a')]
+            stage.addObject(imageLocation, rotation, position, horizontalSize, instructionSet)
+    
+    
     firstRun = True
     dt = 0
     image = plt.imshow(stage.render(0), origin='lower')
@@ -71,6 +98,8 @@ except missingValue:
     pass
 except FileNotFoundError:
     print("Choreography file was not found")
+except SE.end:
+    pass
 
 # stage = SE.Scene(512, 288, 0)
 # stage.setBackground("backdrop.png")
