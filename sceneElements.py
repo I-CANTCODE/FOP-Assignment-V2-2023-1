@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import time
-from matplotlib.patches import Wedge
+from matplotlib.patches import Wedge, Polygon
 from matplotlib.collections import PatchCollection
 
 class end(Exception):
@@ -88,6 +88,9 @@ class Light:
         if self.changed:
             self.lightScreen = self.getNewLightScreen()
         return self.lightScreen
+    
+    def getWidth(self):
+        return self.width
     
     def setColor(self, color):
         colorDictionary = {
@@ -489,7 +492,7 @@ class Scene:
         patches = []
         colors = np.array([[]])
         for light in self.lightList:
-            newcolor = np.array([light.getColor()])
+            newcolor = np.array([light.getColor(), light.getColor()])
             if colors.size == 0:
                 colors = newcolor
 
@@ -497,8 +500,17 @@ class Scene:
                 colors = np.append(colors, newcolor, axis=0)
             # print(str(colors.max()) + " " + str(colors.min()))
             position = (light.getHorizontalPosition(), 26)
-            patches.append(Wedge(position, 20, light.getMinAngle(), light.getMaxAngle()))
-        
+            minAngle = light.getMinAngle()
+            maxAngle = light.getMaxAngle()
+            # if maxAngle - minAngle <= 1e-6:
+            patches.append(Wedge(position, 20, minAngle, maxAngle))
+            # else:
+            p0 = position
+            p1 = position + np.array([light.getWidth(), 0])
+            down = 20 * np.array([math.cos(np.deg2rad(minAngle)), math.sin(np.deg2rad(minAngle))])
+            p2 = p1 + down
+            p3 = p0 + down
+            patches.append(Polygon(np.array([p0, p1, p2, p3]), closed=True))
         colors *= 0.99
         collection = PatchCollection(patches, alpha=1.0)
         # collection.set_array(colors)
