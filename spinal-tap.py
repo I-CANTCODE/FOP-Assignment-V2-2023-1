@@ -82,11 +82,17 @@ try:
     
     firstRun = True
     dt = 0
-    image = plt.imshow(stage.render(0), origin='lower')
+    fig, axs = plt.subplots(nrows = 2, ncols = 1, figsize = (6, 6), gridspec_kw={'height_ratios': [1, 6]})
+    axs[1] = plt.imshow(stage.render(0), origin='lower')
     plt.draw()
     for i in range(10000):
         startTime = time.monotonic()
-        image.set_data(stage.render(dt))
+        axs[1].set_data(stage.render(dt))
+        axs[0].cla()
+        axs[0].set_xlim([0, 512])
+        axs[0].set_ylim([0, 32])
+        axs[0].set_facecolor('k')
+        axs[0].add_collection(stage.getLightPatchCollection())
         plt.draw()
         plt.pause(0.0001)
         lastTime = time.monotonic()

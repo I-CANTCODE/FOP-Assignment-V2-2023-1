@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import time
+from matplotlib.patches import Wedge
+from matplotlib.collections import PatchCollection
 
 class end(Exception):
     pass
@@ -31,24 +33,24 @@ class Light:
         self.changed = False
     
     def getNewLightScreen(self):
-        minVisibleAngle = self.direction - self.spreadAngle / 2
-        maxVisibleAngle = self.direction + self.spreadAngle / 2
+        self.minVisibleAngle = self.direction - self.spreadAngle / 2
+        self.maxVisibleAngle = self.direction + self.spreadAngle / 2
         newLightScreen = np.zeros([self.horizontalSize, self.verticalSize, 3])
-        if minVisibleAngle <= -180:
+        if self.minVisibleAngle <= -180:
             leftEdge = 0
             leftStep = 0
             # print(1)
         else:
             leftEdge = float(self.position[0])
-            leftStep = 1 / math.tan(minVisibleAngle / 180 * math.pi)
+            leftStep = 1 / math.tan(np.deg2rad(self.minVisibleAngle))
         
         # print(self.maxVisibleAngle)
-        if maxVisibleAngle >= 0:
+        if self.maxVisibleAngle >= 0:
             rightEdge = self.horizontalSize
             rightStep = 0
         else:
             rightEdge = float(self.position[0] + self.width)
-            rightStep = 1 / math.tan(maxVisibleAngle / 180 * math.pi)
+            rightStep = 1 / math.tan(np.deg2rad(self.maxVisibleAngle))
             # print(2)
 
         for y in range(self.verticalSize - 1, -1, -1):
@@ -72,6 +74,15 @@ class Light:
 
     def getColor(self):
         return self.color
+    
+    def getMinAngle(self):
+        return self.minVisibleAngle
+    
+    def getMaxAngle(self):
+        return self.maxVisibleAngle
+    
+    def getHorizontalPosition(self):
+        return self.position[0]
     
     def getLightScreen(self):
         if self.changed:
@@ -104,7 +115,8 @@ class Light:
 
 
     def setWidth(self, width):
-        self.width = width / math.sin(-self.direction * math.pi / 180)
+        self.width = width
+        # self.width = width / math.sin(np.deg2rad(self.direction))
         self.changed = True
 
     def setSpreadAngle(self, spreadAngle):
@@ -472,6 +484,30 @@ class Scene:
     
     def addObject(self, imageLocation, rotation, position, horizontalSize, instructionSet):
         self.objectList.append(Object(imageLocation, rotation, position, horizontalSize, instructionSet, self.horizontalSize, self.verticalSize))
+
+    def getLightPatchCollection(self):
+        patches = []
+        colors = np.array([[]])
+        for light in self.lightList:
+            newcolor = np.array([light.getColor()])
+            if colors.size == 0:
+                colors = newcolor
+
+            else:
+                colors = np.append(colors, newcolor, axis=0)
+            # print(str(colors.max()) + " " + str(colors.min()))
+            position = (light.getHorizontalPosition(), 26)
+            patches.append(Wedge(position, 20, light.getMinAngle(), light.getMaxAngle()))
+        
+        colors *= 0.99
+        collection = PatchCollection(patches, alpha=1.0)
+        # collection.set_array(colors)
+        # colors = 100 * np.ones(len(patches))
+        # collection.set_array(colors)
+        collection.set_facecolors(colors)
+        return collection
+
+
 
     def setBackground(self, imageLocation):
         self.background.setBackground(imageLocation)
