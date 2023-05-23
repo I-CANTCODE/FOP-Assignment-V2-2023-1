@@ -10,11 +10,11 @@ class missingValue(Exception):
     def __init__(self, type, rowIndex):
         print("Recquired value is missing from input file for " + type + " in row " + str(2 + rowIndex))
 
-
+choreogrpahyLocation = "Choreography.xlsx"
 
 try:
     #Load the choreography file and get the initialisation sheet
-    choreogrpahy = pandas.read_excel("Choreography.xlsx", None)
+    choreogrpahy = pandas.read_excel(choreogrpahyLocation, None)
     init = choreogrpahy['init']
 
     #Check recquired values are present then initialise stage
