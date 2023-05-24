@@ -5,9 +5,17 @@ import sceneElements as se
 import cv2
 import pandas
 
-df = pandas.read_excel("Choreography.xlsx", "Light1")
-print(df)
-print(df.get(1))
+smoke = se.SmokeScreen(288, 512, 0)
+velocity = smoke.getNewVelocityScreen()
+velocity = np.swapaxes(velocity, 0, 2)
+velocity = velocity[0]
+velocity = np.swapaxes(velocity, 0, 1)
+plt.imshow(velocity)
+plt.colorbar()
+plt.show()
+# df = pandas.read_excel("Choreography.xlsx", "Light1")
+# print(df)
+# print(df.get(1))
 
 
 # plt.imshow(se.SmokeScreen(500, 500, 0).velocityScreen[:, :, 0])

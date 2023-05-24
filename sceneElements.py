@@ -170,7 +170,8 @@ class Light:
                 if self.instructionIndex == 0:
                     self.time = 0
                 else:
-                    self.time = instruction.get("End Time").get(self.instructionIndex - 1)
+                    # print(instruction)
+                    self.time = instruction.get("End Time")
             
             elif currentInstruction == "Hold":
                 pass
@@ -295,7 +296,7 @@ class SmokeScreen:
 
     #The velocity screen is the map of movements that the particles slowly follow
     def getNewVelocityScreen(self):
-        rescaleFactor = 100
+        rescaleFactor = 80
         #Generate a completely random smaller map
         velocityScreen = np.random.random([int(self.horizontalSize / rescaleFactor), int(self.verticalSize / rescaleFactor), 2])
         
@@ -318,7 +319,7 @@ class SmokeScreen:
             
             #if particles exist move particles
             velocityRetention = 0.94    #How much velocity is retained from previous frame
-            velocityRandom = 0.03       #How much velocity is randomly generated
+            velocityRandom = 0.005       #How much velocity is randomly generated
             
             self.smokeParticleVelocities *= velocityRetention
             self.smokeParticleVelocities += 20 *  velocityRandom * np.random.normal(size = self.smokeParticleVelocities.shape)
@@ -535,6 +536,7 @@ class Scene:
             else:
                 colors = np.append(colors, newcolor, axis=0)
             
+            colors = np.clip(colors, 0, 1)
             #Set the shape and position of the light
             position = (light.getHorizontalPosition(), 26)
             minAngle = light.getMinAngle()
